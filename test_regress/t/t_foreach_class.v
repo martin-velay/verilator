@@ -7,6 +7,7 @@
 // verilog_format: off
 `define stop $stop
 `define checkh(gotv,expv) do if ((gotv) !== (expv)) begin $write("%%Error: %s:%0d:  got='h%x exp='h%x\n", `__FILE__,`__LINE__, (gotv), (expv)); `stop; end while(0);
+`define checkd(gotv,expv) do if ((gotv) !== (expv)) begin $write("%%Error: %s:%0d:  got=%0d exp=%0d\n", `__FILE__,`__LINE__, (gotv), (expv)); `stop; end while(0);
 // verilog_format: on
 
 class Cls;
@@ -17,6 +18,30 @@ class Cls;
     q.push_back(3);
   endfunction
 endclass
+
+// Methods defined inside and outside the class number their unnamed blocks
+// separately, so these loops get the same block names in both
+class Sum;
+  int q[$];
+  int da[];
+  int aa[string];
+  int total;
+  function void add(int v);
+    total += v;
+  endfunction
+  task sum_in_class();
+    foreach (q[i]) add(q[i]);
+    foreach (da[i]) add(da[i]);
+    foreach (aa[k]) add(aa[k]);
+  endtask
+  extern task sum_out_of_class();
+endclass
+
+task Sum::sum_out_of_class();
+  foreach (q[i]) add(q[i]);
+  foreach (da[i]) add(da[i]);
+  foreach (aa[k]) add(aa[k]);
+endtask
 
 module t;
 
@@ -32,6 +57,7 @@ module t;
   endfunction
 
   bit [63:0] sum;
+  Sum s;
 
   initial begin
     named.c = new;
@@ -43,6 +69,15 @@ module t;
       end
     end
     `checkh(sum, 64'h000000a02d0fc000);
+
+    s = new;
+    s.q = '{1, 2};
+    s.da = '{3, 4, 5};
+    s.aa = '{"a": 6, "b": 7};
+    s.sum_in_class();
+    `checkd(s.total, 28);
+    s.sum_out_of_class();
+    `checkd(s.total, 56);
 
     $write("*-* All Finished *-*\n");
     $finish;
